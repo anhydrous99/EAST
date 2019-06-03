@@ -1,7 +1,6 @@
-import keras
 from keras.applications.resnet50 import ResNet50
 from keras.models import Model
-from keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, multiply, add, ZeroPadding2D, Activation, Layer, MaxPooling2D, Dropout
+from keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, ZeroPadding2D, Activation
 from keras import regularizers
 import keras.backend as K
 import tensorflow as tf
@@ -9,8 +8,10 @@ import numpy as np
 
 RESIZE_FACTOR = 2
 
+
 def resize_bilinear(x):
     return tf.image.resize_bilinear(x, size=[K.shape(x)[1]*RESIZE_FACTOR, K.shape(x)[2]*RESIZE_FACTOR])
+
 
 def resize_output_shape(input_shape):
     shape = list(input_shape)
@@ -19,7 +20,8 @@ def resize_output_shape(input_shape):
     shape[2] *= RESIZE_FACTOR
     return tuple(shape)
 
-class EAST_model:
+
+class EASTModel:
 
     def __init__(self, input_size=512):
         input_image = Input(shape=(None, None, 3), name='input_image')

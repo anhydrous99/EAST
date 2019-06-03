@@ -1,6 +1,5 @@
-import numpy as np
 import tensorflow as tf
-import keras.backend as K
+
 
 def dice_loss(overly_small_text_region_training_mask, text_region_boundary_training_mask, loss_weight, small_text_weight):
     def loss(y_true, y_pred):
@@ -11,6 +10,7 @@ def dice_loss(overly_small_text_region_training_mask, text_region_boundary_train
         loss = 1. - (2. * intersection / union)
         return loss * loss_weight
     return loss
+
 
 def rbox_loss(overly_small_text_region_training_mask, text_region_boundary_training_mask, small_text_weight, target_score_map):
     def loss(y_true, y_pred):

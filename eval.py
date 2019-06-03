@@ -1,13 +1,13 @@
 import cv2
 import time
-import math
 import os
 import argparse
-import numpy as np
-import tensorflow as tf
-from keras.models import load_model, model_from_json
+from keras.models import model_from_json
 
-import locality_aware_nms as nms_locality
+from model import *
+from losses import *
+from data_processor import restore_rectangle
+
 import lanms
 
 parser = argparse.ArgumentParser()
@@ -17,9 +17,6 @@ parser.add_argument('--model_path', type=str, default='')
 parser.add_argument('--output_dir', type=str, default='tmp/eval/east_icdar2015_resnet_v1_50_rbox/')
 FLAGS = parser.parse_args()
 
-from model import *
-from losses import *
-from data_processor import restore_rectangle
 
 def get_images():
     '''
@@ -88,7 +85,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=0.8, box_thresh=0.1, nms_
     xy_text = xy_text[np.argsort(xy_text[:, 0])]
     # restore
     start = time.time()
-    text_box_restored = restore_rectangle(xy_text[:, ::-1]*4, geo_map[xy_text[:, 0], xy_text[:, 1], :]) # N*4*2
+    text_box_restored = restore_rectangle(xy_text[:, ::-1] * 4, geo_map[xy_text[:, 0], xy_text[:, 1], :])  # N*4*2
     print('{} text boxes before nms'.format(text_box_restored.shape[0]))
     boxes = np.zeros((text_box_restored.shape[0], 9), dtype=np.float32)
     boxes[:, :8] = text_box_restored.reshape((-1, 8))
@@ -115,7 +112,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=0.8, box_thresh=0.1, nms_
 
 def sort_poly(p):
     min_axis = np.argmin(np.sum(p, axis=1))
-    p = p[[min_axis, (min_axis+1)%4, (min_axis+2)%4, (min_axis+3)%4]]
+    p = p[[min_axis, (min_axis + 1) % 4, (min_axis + 2) % 4, (min_axis + 3) % 4]]
     if abs(p[0, 0] - p[1, 0]) > abs(p[0, 1] - p[1, 1]):
         return p
     else:
@@ -157,7 +154,7 @@ def main(argv=None):
 
         boxes, timer = detect(score_map=score_map, geo_map=geo_map, timer=timer)
         print('{} : net {:.0f}ms, restore {:.0f}ms, nms {:.0f}ms'.format(
-            img_file, timer['net']*1000, timer['restore']*1000, timer['nms']*1000))
+            img_file, timer['net'] * 1000, timer['restore'] * 1000, timer['nms'] * 1000))
 
         if boxes is not None:
             boxes = boxes[:, :8].reshape((-1, 4, 2))
@@ -178,12 +175,13 @@ def main(argv=None):
                 for box in boxes:
                     # to avoid submitting errors
                     box = sort_poly(box.astype(np.int32))
-                    if np.linalg.norm(box[0] - box[1]) < 5 or np.linalg.norm(box[3]-box[0]) < 5:
+                    if np.linalg.norm(box[0] - box[1]) < 5 or np.linalg.norm(box[3] - box[0]) < 5:
                         continue
                     f.write('{},{},{},{},{},{},{},{}\r\n'.format(
                         box[0, 0], box[0, 1], box[1, 0], box[1, 1], box[2, 0], box[2, 1], box[3, 0], box[3, 1],
                     ))
-                    cv2.polylines(img[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1)
+                    cv2.polylines(img[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True,
+                                  color=(255, 255, 0), thickness=1)
 
         img_path = os.path.join(FLAGS.output_dir, os.path.basename(img_file))
         cv2.imwrite(img_path, img[:, :, ::-1])
