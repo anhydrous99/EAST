@@ -23,7 +23,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type=int, default=512)  # input size for training of the network
 parser.add_argument('--batch_size', type=int, default=16)  # batch size for training
 parser.add_argument('--nb_workers', type=int,
-                    default=4)  # number of processes to spin up when using process based threading, as defined in https://keras.io/models/model/#fit_generator
+                    default=4)  # number of processes to spin up when using process based threading,
+#                                 as defined in https://keras.io/models/model/#fit_generator
 parser.add_argument('--init_learning_rate', type=float, default=0.0001)  # initial learning rate
 parser.add_argument('--lr_decay_rate', type=float, default=0.94)  # decay rate for the learning rate
 parser.add_argument('--lr_decay_steps', type=int,
@@ -37,17 +38,22 @@ parser.add_argument('--save_checkpoint_epochs', type=int,
 parser.add_argument('--training_data_path', type=str, default='../data/ICDAR2015/train_data')  # path to training data
 parser.add_argument('--validation_data_path', type=str, default='../data/MLT/val_data_latin')  # path to validation data
 parser.add_argument('--max_image_large_side', type=int,
-                    default=1280)  # maximum size of the large side of a training image before cropping a patch for training
+                    default=1280)  # maximum size of the large side of a training
+#                                    image before cropping a patch for training
 parser.add_argument('--max_text_size', type=int,
                     default=800)  # maximum size of a text instance in an image; image resized if this limit is exceeded
 parser.add_argument('--min_text_size', type=int,
                     default=10)  # minimum size of a text instance; if smaller, then it is ignored during training
 parser.add_argument('--min_crop_side_ratio', type=float,
-                    default=0.1)  # the minimum ratio of min(H, W), the smaller side of the image, when taking a random crop from thee input image
+                    default=0.1)  # the minimum ratio of min(H, W), the smaller side of the image,
+#                                   when taking a random crop from thee input image
 parser.add_argument('--geometry', type=str,
-                    default='RBOX')  # geometry type to be used; only RBOX is implemented now, but the original paper also uses QUAD
+                    default='RBOX')  # geometry type to be used; only RBOX is implemented now,
+#                                      but the original paper also uses QUAD
 parser.add_argument('--suppress_warnings_and_error_messages', type=bool,
-                    default=True)  # whether to show error messages and warnings during training (some error messages during training are expected to appear because of the way patches for training are created)
+                    default=True)  # whether to show error messages and warnings during training
+#                                    (some error messages during training are expected to appear
+#                                    because of the way patches for training are created)
 FLAGS = parser.parse_args()
 
 gpus = list(range(len(FLAGS.gpu_list.split(','))))
@@ -90,10 +96,10 @@ def make_image_summary(tensor):
     image.save(output, format='PNG')
     image_string = output.getvalue()
     output.close()
-    return tf.Summary.Image(height=height,
-                            width=width,
-                            colorspace=channel,
-                            encoded_image_string=image_string)
+    return tf.compat.v1.Summary.Image(height=height,
+                                      width=width,
+                                      colorspace=channel,
+                                      encoded_image_string=image_string)
 
 
 class CustomTensorBoard(TensorBoard):
@@ -115,26 +121,30 @@ class CustomTensorBoard(TensorBoard):
             text_region_boundary_training_mask_summary = make_image_summary((data[0][2][i] * 255).astype('uint8'))
             target_score_map_summary = make_image_summary((data[1][0][i] * 255).astype('uint8'))
             pred_score_map_summary = make_image_summary((pred_score_maps[i] * 255).astype('uint8'))
-            img_summaries.append(tf.Summary.Value(tag='input_image/%d' % i, image=input_image_summary))
-            img_summaries.append(tf.Summary.Value(tag='overly_small_text_region_training_mask/%d' % i,
-                                                  image=overly_small_text_region_training_mask_summary))
-            img_summaries.append(tf.Summary.Value(tag='text_region_boundary_training_mask/%d' % i,
-                                                  image=text_region_boundary_training_mask_summary))
-            img_summaries.append(tf.Summary.Value(tag='score_map_target/%d' % i, image=target_score_map_summary))
-            img_summaries.append(tf.Summary.Value(tag='score_map_pred/%d' % i, image=pred_score_map_summary))
+            img_summaries.append(tf.compat.v1.Summary.Value(tag='input_image/%d' % i, image=input_image_summary))
+            img_summaries.append(tf.compat.v1.Summary.Value(tag='overly_small_text_region_training_mask/%d' % i,
+                                                            image=overly_small_text_region_training_mask_summary))
+            img_summaries.append(tf.compat.v1.Summary.Value(tag='text_region_boundary_training_mask/%d' % i,
+                                                            image=text_region_boundary_training_mask_summary))
+            img_summaries.append(
+                tf.compat.v1.Summary.Value(tag='score_map_target/%d' % i, image=target_score_map_summary))
+            img_summaries.append(tf.compat.v1.Summary.Value(tag='score_map_pred/%d' % i, image=pred_score_map_summary))
             for j in range(4):
                 target_geo_map_summary = make_image_summary(
                     (data[1][1][i, :, :, j] / FLAGS.input_size * 255).astype('uint8'))
                 pred_geo_map_summary = make_image_summary(
                     (pred_geo_maps[i, :, :, j] / FLAGS.input_size * 255).astype('uint8'))
                 img_summaries.append(
-                    tf.Summary.Value(tag='geo_map_%d_target/%d' % (j, i), image=target_geo_map_summary))
-                img_summaries.append(tf.Summary.Value(tag='geo_map_%d_pred/%d' % (j, i), image=pred_geo_map_summary))
+                    tf.compat.v1.Summary.Value(tag='geo_map_%d_target/%d' % (j, i), image=target_geo_map_summary))
+                img_summaries.append(
+                    tf.compat.v1.Summary.Value(tag='geo_map_%d_pred/%d' % (j, i), image=pred_geo_map_summary))
             target_geo_map_summary = make_image_summary(((data[1][1][i, :, :, 4] + 1) * 127.5).astype('uint8'))
             pred_geo_map_summary = make_image_summary(((pred_geo_maps[i, :, :, 4] + 1) * 127.5).astype('uint8'))
-            img_summaries.append(tf.Summary.Value(tag='geo_map_%d_target/%d' % (4, i), image=target_geo_map_summary))
-            img_summaries.append(tf.Summary.Value(tag='geo_map_%d_pred/%d' % (4, i), image=pred_geo_map_summary))
-        tf_summary = tf.Summary(value=img_summaries)
+            img_summaries.append(
+                tf.compat.v1.Summary.Value(tag='geo_map_%d_target/%d' % (4, i), image=target_geo_map_summary))
+            img_summaries.append(
+                tf.compat.v1.Summary.Value(tag='geo_map_%d_pred/%d' % (4, i), image=pred_geo_map_summary))
+        tf_summary = tf.compat.v1.Summary(value=img_summaries)
         self.writer.add_summary(tf_summary, epoch + 1)
         super(CustomTensorBoard, self).on_epoch_end(epoch + 1, logs)
 
@@ -156,7 +166,7 @@ class ValidationEvaluator(Callback):
         self.period = period
         self.validation_data = validation_data
         self.validation_log_dir = validation_log_dir
-        self.val_writer = tf.summary.FileWriter(self.validation_log_dir)
+        self.val_writer = tf.compat.v1.Summary.FileWriter(self.validation_log_dir)
 
     def on_epoch_end(self, epoch, logs={}):
         if (epoch + 1) % self.period == 0:
@@ -164,18 +174,18 @@ class ValidationEvaluator(Callback):
                 [self.validation_data[0], self.validation_data[1], self.validation_data[2], self.validation_data[3]],
                 [self.validation_data[3], self.validation_data[4]], batch_size=FLAGS.batch_size)
             print('\nEpoch %d: val_loss: %.4f, val_score_map_loss: %.4f, val_geo_map_loss: %.4f' % (
-            epoch + 1, val_loss, val_score_map_loss, val_geo_map_loss))
-            val_loss_summary = tf.Summary()
+                epoch + 1, val_loss, val_score_map_loss, val_geo_map_loss))
+            val_loss_summary = tf.compat.v1.Summary()
             val_loss_summary_value = val_loss_summary.value.add()
             val_loss_summary_value.simple_value = val_loss
             val_loss_summary_value.tag = 'loss'
             self.val_writer.add_summary(val_loss_summary, epoch + 1)
-            val_score_map_loss_summary = tf.Summary()
+            val_score_map_loss_summary = tf.compat.v1.Summary()
             val_score_map_loss_summary_value = val_score_map_loss_summary.value.add()
             val_score_map_loss_summary_value.simple_value = val_score_map_loss
             val_score_map_loss_summary_value.tag = 'pred_score_map_loss'
             self.val_writer.add_summary(val_score_map_loss_summary, epoch + 1)
-            val_geo_map_loss_summary = tf.Summary()
+            val_geo_map_loss_summary = tf.compat.v1.Summary()
             val_geo_map_loss_summary_value = val_geo_map_loss_summary.value.add()
             val_geo_map_loss_summary_value.simple_value = val_geo_map_loss
             val_geo_map_loss_summary_value.tag = 'pred_geo_map_loss'
@@ -193,29 +203,32 @@ class ValidationEvaluator(Callback):
                     (self.validation_data[2][i] * 255).astype('uint8'))
                 target_score_map_summary = make_image_summary((self.validation_data[3][i] * 255).astype('uint8'))
                 pred_score_map_summary = make_image_summary((pred_score_maps[i] * 255).astype('uint8'))
-                img_summaries.append(tf.Summary.Value(tag='input_image/%d' % i, image=input_image_summary))
-                img_summaries.append(tf.Summary.Value(tag='overly_small_text_region_training_mask/%d' % i,
-                                                      image=overly_small_text_region_training_mask_summary))
-                img_summaries.append(tf.Summary.Value(tag='text_region_boundary_training_mask/%d' % i,
-                                                      image=text_region_boundary_training_mask_summary))
-                img_summaries.append(tf.Summary.Value(tag='score_map_target/%d' % i, image=target_score_map_summary))
-                img_summaries.append(tf.Summary.Value(tag='score_map_pred/%d' % i, image=pred_score_map_summary))
+                img_summaries.append(tf.compat.v1.Summary.Value(tag='input_image/%d' % i, image=input_image_summary))
+                img_summaries.append(tf.compat.v1.Summary.Value(tag='overly_small_text_region_training_mask/%d' % i,
+                                                                image=overly_small_text_region_training_mask_summary))
+                img_summaries.append(tf.compat.v1.Summary.Value(tag='text_region_boundary_training_mask/%d' % i,
+                                                                image=text_region_boundary_training_mask_summary))
+                img_summaries.append(tf.compat.v1.Summary.Value(tag='score_map_target/%d' % i,
+                                                                image=target_score_map_summary))
+                img_summaries.append(tf.compat.v1.Summary.Value(tag='score_map_pred/%d' % i,
+                                                                image=pred_score_map_summary))
                 for j in range(4):
                     target_geo_map_summary = make_image_summary(
                         (self.validation_data[4][i, :, :, j] / FLAGS.input_size * 255).astype('uint8'))
                     pred_geo_map_summary = make_image_summary(
                         (pred_geo_maps[i, :, :, j] / FLAGS.input_size * 255).astype('uint8'))
                     img_summaries.append(
-                        tf.Summary.Value(tag='geo_map_%d_target/%d' % (j, i), image=target_geo_map_summary))
+                        tf.compat.v1.Summary.Value(tag='geo_map_%d_target/%d' % (j, i), image=target_geo_map_summary))
                     img_summaries.append(
-                        tf.Summary.Value(tag='geo_map_%d_pred/%d' % (j, i), image=pred_geo_map_summary))
+                        tf.compat.v1.Summary.Value(tag='geo_map_%d_pred/%d' % (j, i), image=pred_geo_map_summary))
                 target_geo_map_summary = make_image_summary(
                     ((self.validation_data[4][i, :, :, 4] + 1) * 127.5).astype('uint8'))
                 pred_geo_map_summary = make_image_summary(((pred_geo_maps[i, :, :, 4] + 1) * 127.5).astype('uint8'))
                 img_summaries.append(
-                    tf.Summary.Value(tag='geo_map_%d_target/%d' % (4, i), image=target_geo_map_summary))
-                img_summaries.append(tf.Summary.Value(tag='geo_map_%d_pred/%d' % (4, i), image=pred_geo_map_summary))
-            tf_summary = tf.Summary(value=img_summaries)
+                    tf.compat.v1.Summary.Value(tag='geo_map_%d_target/%d' % (4, i), image=target_geo_map_summary))
+                img_summaries.append(
+                    tf.compat.v1.Summary.Value(tag='geo_map_%d_pred/%d' % (4, i), image=pred_geo_map_summary))
+            tf_summary = tf.compat.v1.Summary(value=img_summaries)
             self.val_writer.add_summary(tf_summary, epoch + 1)
             self.val_writer.flush()
 
@@ -224,7 +237,7 @@ def lr_decay(epoch):
     return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
 
 
-def main(argv=None):
+def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
     # check if checkpoint path exists

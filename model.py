@@ -1,6 +1,6 @@
 from keras.applications.mobilenet_v2 import MobileNetV2
 from keras.models import Model
-from keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, ZeroPadding2D, Activation
+from keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, Activation
 from keras import regularizers
 import keras.backend as K
 import tensorflow as tf
@@ -10,7 +10,10 @@ RESIZE_FACTOR = 2
 
 
 def resize_bilinear(x):
-    return tf.image.resize_bilinear(x, size=[K.shape(x)[1]*RESIZE_FACTOR, K.shape(x)[2]*RESIZE_FACTOR])
+    return tf.image.resize(
+        x,
+        size=[K.shape(x)[1]*RESIZE_FACTOR, K.shape(x)[2]*RESIZE_FACTOR],
+        method=tf.image.ResizeMethod.BILINEAR)
 
 
 def resize_output_shape(input_shape):

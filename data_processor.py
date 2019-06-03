@@ -9,7 +9,7 @@ from multiprocessing import Pool
 import threading
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as Patches
+import matplotlib.patches as patches
 from shapely.geometry import Polygon
 
 
@@ -718,7 +718,7 @@ def generator(FLAGS, input_size=512, background_ratio=3./8, is_train=True, idx=N
                     for poly in text_polys:
                         poly_h = min(abs(poly[3, 1] - poly[0, 1]), abs(poly[2, 1] - poly[1, 1]))
                         poly_w = min(abs(poly[1, 0] - poly[0, 0]), abs(poly[2, 0] - poly[3, 0]))
-                        axs[0, 0].add_artist(Patches.Polygon(
+                        axs[0, 0].add_artist(patches.Polygon(
                             poly, facecolor='none', edgecolor='green', linewidth=2, linestyle='-', fill=True))
                         axs[0, 0].text(poly[0, 0], poly[0, 1], '{:.0f}-{:.0f}'.format(poly_h, poly_w), color='purple')
                     axs[0, 1].imshow(score_map[::, ::])

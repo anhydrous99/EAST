@@ -119,7 +119,7 @@ def sort_poly(p):
         return p[[0, 3, 2, 1]]
 
 
-def main(argv=None):
+def main():
     import os
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
