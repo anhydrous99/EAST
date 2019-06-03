@@ -1,4 +1,4 @@
-from keras.applications.resnet50 import ResNet50
+from keras.applications.mobilenet_v2 import MobileNetV2
 from keras.models import Model
 from keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, ZeroPadding2D, Activation
 from keras import regularizers
@@ -28,11 +28,11 @@ class EASTModel:
         overly_small_text_region_training_mask = Input(shape=(None, None, 1), name='overly_small_text_region_training_mask')
         text_region_boundary_training_mask = Input(shape=(None, None, 1), name='text_region_boundary_training_mask')
         target_score_map = Input(shape=(None, None, 1), name='target_score_map')
-        resnet = ResNet50(input_tensor=input_image, weights='imagenet', include_top=False, pooling=None)
-        x = resnet.get_layer('activation_49').output
+        mobilenetv2 = MobileNetV2(input_tensor=input_image, weights='imagenet', include_top=False, pooling=None)
+        x = mobilenetv2.get_layer('out_relu').output
 
         x = Lambda(resize_bilinear, name='resize_1')(x)
-        x = concatenate([x, resnet.get_layer('activation_40').output], axis=3)
+        x = concatenate([x, mobilenetv2.get_layer('block_13_expand_relu').output], axis=3)
         x = Conv2D(128, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
         x = Activation('relu')(x)
@@ -41,7 +41,7 @@ class EASTModel:
         x = Activation('relu')(x)
 
         x = Lambda(resize_bilinear, name='resize_2')(x)
-        x = concatenate([x, resnet.get_layer('activation_22').output], axis=3)
+        x = concatenate([x, mobilenetv2.get_layer('block_6_expand_relu').output], axis=3)
         x = Conv2D(64, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
         x = Activation('relu')(x)
@@ -50,7 +50,7 @@ class EASTModel:
         x = Activation('relu')(x)
 
         x = Lambda(resize_bilinear, name='resize_3')(x)
-        x = concatenate([x, ZeroPadding2D(((1, 0),(1, 0)))(resnet.get_layer('activation_10').output)], axis=3)
+        x = concatenate([x, mobilenetv2.get_layer('block_3_expand_relu').output], axis=3)
         x = Conv2D(32, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
         x = Activation('relu')(x)
