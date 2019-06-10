@@ -1,8 +1,8 @@
-from keras.applications.mobilenet_v2 import MobileNetV2
-from keras.models import Model
-from keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, Activation
-from keras import regularizers
-import keras.backend as K
+from tensorflow.python.keras.applications.mobilenet_v2 import MobileNetV2
+from tensorflow.python.keras.models import Model
+from tensorflow.python.keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, Activation, Reshape
+from tensorflow.python.keras import regularizers
+import tensorflow.python.keras.backend as K
 import tensorflow as tf
 import numpy as np
 
@@ -27,42 +27,45 @@ def resize_output_shape(input_shape):
 class EASTModel:
 
     def __init__(self, input_size=512):
-        input_image = Input(shape=(None, None, 3), name='input_image')
-        overly_small_text_region_training_mask = Input(shape=(None, None, 1), name='overly_small_text_region_training_mask')
-        text_region_boundary_training_mask = Input(shape=(None, None, 1), name='text_region_boundary_training_mask')
-        target_score_map = Input(shape=(None, None, 1), name='target_score_map')
-        mobilenetv2 = MobileNetV2(input_tensor=input_image, weights='imagenet', include_top=False, pooling=None)
+        input_image = Input(shape=(512, 512, 3), name='input_image')
+        overly_small_text_region_training_mask = Input(shape=(128, 128, 1), name='overly_small_text_region_training_mask')
+        text_region_boundary_training_mask = Input(shape=(128, 128, 1), name='text_region_boundary_training_mask')
+        target_score_map = Input(shape=(128, 128, 1), name='target_score_map')
+        mobilenetv2 = MobileNetV2(input_tensor=input_image, input_shape=(512, 512, 3), weights='imagenet', include_top=False, pooling=None)
         x = mobilenetv2.get_layer('out_relu').output
 
-        x = Lambda(resize_bilinear, name='resize_1')(x)
+        x = Lambda(resize_bilinear, output_shape=(32, 32, 1280), name='resize_1')(x)
+        x = Reshape((32, 32, 1280))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_13_expand_relu').output], axis=3)
         x = Conv2D(128, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
         x = Conv2D(128, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
 
-        x = Lambda(resize_bilinear, name='resize_2')(x)
+        x = Lambda(resize_bilinear, output_shape=(64, 64, 128), name='resize_2')(x)
+        x = Reshape((64, 64, 128))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_6_expand_relu').output], axis=3)
         x = Conv2D(64, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
         x = Conv2D(64, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
 
-        x = Lambda(resize_bilinear, name='resize_3')(x)
+        x = Lambda(resize_bilinear, output_shape=(128, 128, 64), name='resize_3')(x)
+        x = Reshape((128, 128, 64))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_3_expand_relu').output], axis=3)
         x = Conv2D(32, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
         x = Conv2D(32, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
 
         x = Conv2D(32, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
-        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True)(x)
+        x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = Activation('relu')(x)
 
         pred_score_map = Conv2D(1, (1, 1), activation=tf.nn.sigmoid, name='pred_score_map')(x)

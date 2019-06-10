@@ -1,4 +1,4 @@
-from keras.utils.data_utils import Sequence
+from tensorflow.python.keras.utils.data_utils import Sequence
 from data_processor import get_images, get_text_file, load_annotation, check_and_validate_polys, crop_area, pad_image, \
     resize_image, generate_rbox
 import numpy as np
@@ -34,8 +34,8 @@ class EastSequence(Sequence):
         overly_small_text_region_training_masks = []
         text_region_boundary_training_masks = []
         end_idx = idx + self.batch_size
-        end_idx = end_idx if end_idx < self.length else self.length
-        for i in range(idx, end_idx):
+        end_idx = end_idx if end_idx < len(self.index) else len(self.index)
+        for i in self.index[idx:end_idx]:
             im_fn = self.image_list[i]
             im = cv2.imread(im_fn)
             h, w, _ = im.shape
@@ -72,15 +72,15 @@ class EastSequence(Sequence):
             else:
                 im, text_polys, text_tags = crop_area(self.FLAGS, im, text_polys, text_tags, crop_background=False)
                 if text_polys.shape[0] == 0:
-                    raise Exception('0 Shape'.format(txt_fn))
+                    continue
                 h, w, _ = im.shape
-                im, shift_h, shift_w = pad_image(im, self.FLAGS.input_size, self.is_train)
+                im, shift_h, shift_w = pad_image(im, self.input_size, self.is_train)
                 im, text_polys = resize_image(im, text_polys, self.input_size, shift_h, shift_w)
                 new_h, new_w, _ = im.shape
                 score_map, geo_map, overly_small_text_region_training_mask, text_region_boundary_training_mask = \
                     generate_rbox(self.FLAGS, (new_h, new_w), text_polys, text_tags)
 
-            im = (im / 127.5) - 1.0
+            im = (im / 127.5) - 1.
             images.append(im[:, :, ::-1].astype(np.float32))
             image_fns.append(im_fn)
             score_maps.append(score_map[::4, ::4, np.newaxis].astype(np.float32))
@@ -91,6 +91,7 @@ class EastSequence(Sequence):
             text_region_boundary_training_masks.append(
                 text_region_boundary_training_mask[::4, ::4, np.newaxis].astype(np.float32)
             )
+        print(len(images))
         return [np.array(images), np.array(overly_small_text_region_training_masks),
                 np.array(text_region_boundary_training_masks), np.array(score_maps)], \
                [np.array(score_maps), np.array(geo_maps)]

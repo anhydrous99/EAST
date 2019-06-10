@@ -5,19 +5,20 @@ import numpy as np
 from PIL import Image
 import tensorflow as tf
 import argparse
-from keras.callbacks import LearningRateScheduler, TensorBoard, Callback
+from tensorflow.python.keras.callbacks import LearningRateScheduler, TensorBoard, Callback
 
 try:
-    from keras.utils.training_utils import multi_gpu_model
+    from tensorflow.python.keras.utils.training_utils import multi_gpu_model
 except ImportError:
-    from keras.utils.multi_gpu_utils import multi_gpu_model
-import keras.backend as K
+    from tensorflow.python.keras.utils.multi_gpu_utils import multi_gpu_model
+import tensorflow.python.keras.backend as K
 
-from adamw import AdamW
+#from adamw import AdamW
 
 from model import EASTModel
 from losses import dice_loss, rbox_loss
 import data_processor
+from generator import EastSequence
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type=int, default=512)  # input size for training of the network
@@ -102,53 +103,6 @@ def make_image_summary(tensor):
                                       encoded_image_string=image_string)
 
 
-class CustomTensorBoard(TensorBoard):
-    def __init__(self, log_dir, score_map_loss_weight, small_text_weight, data_generator, write_graph=False):
-        self.score_map_loss_weight = score_map_loss_weight
-        self.small_text_weight = small_text_weight
-        self.data_generator = data_generator
-        super(CustomTensorBoard, self).__init__(log_dir=log_dir, write_graph=write_graph)
-
-    def on_epoch_end(self, epoch, logs=None):
-        logs.update(
-            {'learning_rate': K.eval(self.model.optimizer.lr), 'small_text_weight': K.eval(self.small_text_weight)})
-        data = next(self.data_generator)
-        pred_score_maps, pred_geo_maps = self.model.predict([data[0][0], data[0][1], data[0][2], data[0][3]])
-        img_summaries = []
-        for i in range(3):
-            input_image_summary = make_image_summary(((data[0][0][i] + 1) * 127.5).astype('uint8'))
-            overly_small_text_region_training_mask_summary = make_image_summary((data[0][1][i] * 255).astype('uint8'))
-            text_region_boundary_training_mask_summary = make_image_summary((data[0][2][i] * 255).astype('uint8'))
-            target_score_map_summary = make_image_summary((data[1][0][i] * 255).astype('uint8'))
-            pred_score_map_summary = make_image_summary((pred_score_maps[i] * 255).astype('uint8'))
-            img_summaries.append(tf.compat.v1.Summary.Value(tag='input_image/%d' % i, image=input_image_summary))
-            img_summaries.append(tf.compat.v1.Summary.Value(tag='overly_small_text_region_training_mask/%d' % i,
-                                                            image=overly_small_text_region_training_mask_summary))
-            img_summaries.append(tf.compat.v1.Summary.Value(tag='text_region_boundary_training_mask/%d' % i,
-                                                            image=text_region_boundary_training_mask_summary))
-            img_summaries.append(
-                tf.compat.v1.Summary.Value(tag='score_map_target/%d' % i, image=target_score_map_summary))
-            img_summaries.append(tf.compat.v1.Summary.Value(tag='score_map_pred/%d' % i, image=pred_score_map_summary))
-            for j in range(4):
-                target_geo_map_summary = make_image_summary(
-                    (data[1][1][i, :, :, j] / FLAGS.input_size * 255).astype('uint8'))
-                pred_geo_map_summary = make_image_summary(
-                    (pred_geo_maps[i, :, :, j] / FLAGS.input_size * 255).astype('uint8'))
-                img_summaries.append(
-                    tf.compat.v1.Summary.Value(tag='geo_map_%d_target/%d' % (j, i), image=target_geo_map_summary))
-                img_summaries.append(
-                    tf.compat.v1.Summary.Value(tag='geo_map_%d_pred/%d' % (j, i), image=pred_geo_map_summary))
-            target_geo_map_summary = make_image_summary(((data[1][1][i, :, :, 4] + 1) * 127.5).astype('uint8'))
-            pred_geo_map_summary = make_image_summary(((pred_geo_maps[i, :, :, 4] + 1) * 127.5).astype('uint8'))
-            img_summaries.append(
-                tf.compat.v1.Summary.Value(tag='geo_map_%d_target/%d' % (4, i), image=target_geo_map_summary))
-            img_summaries.append(
-                tf.compat.v1.Summary.Value(tag='geo_map_%d_pred/%d' % (4, i), image=pred_geo_map_summary))
-        tf_summary = tf.compat.v1.Summary(value=img_summaries)
-        self.writer.add_summary(tf_summary, epoch + 1)
-        super(CustomTensorBoard, self).on_epoch_end(epoch + 1, logs)
-
-
 class SmallTextWeight(Callback):
     def __init__(self, weight):
         self.weight = weight
@@ -166,7 +120,7 @@ class ValidationEvaluator(Callback):
         self.period = period
         self.validation_data = validation_data
         self.validation_log_dir = validation_log_dir
-        self.val_writer = tf.compat.v1.Summary.FileWriter(self.validation_log_dir)
+        self.val_writer = tf.summary.FileWriter(self.validation_log_dir)
 
     def on_epoch_end(self, epoch, logs={}):
         if (epoch + 1) % self.period == 0:
@@ -250,51 +204,62 @@ def main():
         shutil.rmtree(FLAGS.checkpoint_path)
         os.mkdir(FLAGS.checkpoint_path)
 
-    train_data_generator = data_processor.generator(FLAGS)
+#    train_data_generator = data_processor.generator(FLAGS)
+    train_data_generator = EastSequence(FLAGS)
     train_samples_count = data_processor.count_samples(FLAGS)
 
     val_data = data_processor.load_data(FLAGS)
 
-    if len(gpus) <= 1:
-        print('Training with 1 GPU')
-        east = EASTModel(FLAGS.input_size)
-        parallel_model = east.model
-    else:
-        print('Training with %d GPUs' % len(gpus))
-        with tf.device("/cpu:0"):
+    train_graph = tf.Graph()
+    train_sess = tf.Session(graph=train_graph)
+    K.set_session(train_sess)
+    with train_graph.as_default():
+        K.set_learning_phase(0)
+
+        if len(gpus) <= 1:
+            print('Training with 1 GPU')
             east = EASTModel(FLAGS.input_size)
+            parallel_model = east.model
+        else:
+            print('Training with %d GPUs' % len(gpus))
+            with tf.device("/cpu:0"):
+                east = EASTModel(FLAGS.input_size)
+            parallel_model = multi_gpu_model(east.model, gpus=len(gpus))
 
-        parallel_model = multi_gpu_model(east.model, gpus=len(gpus))
+        score_map_loss_weight = K.variable(0.01, name='score_map_loss_weight')
+        small_text_weight = K.variable(0., name='small_text_weight')
 
-    score_map_loss_weight = K.variable(0.01, name='score_map_loss_weight')
+        tf.contrib.quantize.create_training_graph(input_graph=train_graph, quant_delay=100)
+        train_sess.run(tf.global_variables_initializer())
 
-    small_text_weight = K.variable(0., name='small_text_weight')
+        lr_scheduler = LearningRateScheduler(lr_decay)
+        ckpt = CustomModelCheckpoint(model=east.model, path=FLAGS.checkpoint_path + '/model-{epoch:02d}.h5',
+                                     period=FLAGS.save_checkpoint_epochs, save_weights_only=True)
+        tb = TensorBoard(log_dir=FLAGS.checkpoint_path + '/train', batch_size=FLAGS.batch_size,
+                         write_images=True)
+        small_text_weight_callback = SmallTextWeight(small_text_weight)
+        validation_evaluator = ValidationEvaluator(val_data, validation_log_dir=FLAGS.checkpoint_path + '/val')
+        callbacks = [lr_scheduler, ckpt, tb, small_text_weight_callback, validation_evaluator]
 
-    lr_scheduler = LearningRateScheduler(lr_decay)
-    ckpt = CustomModelCheckpoint(model=east.model, path=FLAGS.checkpoint_path + '/model-{epoch:02d}.h5',
-                                 period=FLAGS.save_checkpoint_epochs, save_weights_only=True)
-    tb = CustomTensorBoard(log_dir=FLAGS.checkpoint_path + '/train', score_map_loss_weight=score_map_loss_weight,
-                           small_text_weight=small_text_weight, data_generator=train_data_generator, write_graph=True)
-    small_text_weight_callback = SmallTextWeight(small_text_weight)
-    validation_evaluator = ValidationEvaluator(val_data, validation_log_dir=FLAGS.checkpoint_path + '/val')
-    callbacks = [lr_scheduler, ckpt, tb, small_text_weight_callback, validation_evaluator]
+#        opt = AdamW(FLAGS.init_learning_rate)
 
-    opt = AdamW(FLAGS.init_learning_rate)
+        parallel_model.compile(loss=[
+            dice_loss(east.overly_small_text_region_training_mask, east.text_region_boundary_training_mask,
+                      score_map_loss_weight, small_text_weight),
+            rbox_loss(east.overly_small_text_region_training_mask, east.text_region_boundary_training_mask,
+                      small_text_weight, east.target_score_map)], loss_weights=[1., 1.], optimizer='sgd')
 
-    parallel_model.compile(loss=[
-        dice_loss(east.overly_small_text_region_training_mask, east.text_region_boundary_training_mask,
-                  score_map_loss_weight, small_text_weight),
-        rbox_loss(east.overly_small_text_region_training_mask, east.text_region_boundary_training_mask,
-                  small_text_weight, east.target_score_map)], loss_weights=[1., 1.], optimizer=opt)
+        model_json = east.model.to_json()
+        with open(FLAGS.checkpoint_path + '/model.json', 'w') as json_file:
+            json_file.write(model_json)
 
-    model_json = east.model.to_json()
-    with open(FLAGS.checkpoint_path + '/model.json', 'w') as json_file:
-        json_file.write(model_json)
+        history = parallel_model.fit_generator(train_data_generator, epochs=FLAGS.max_epochs,
+                                               steps_per_epoch=train_samples_count / FLAGS.batch_size,
+                                               workers=FLAGS.nb_workers, use_multiprocessing=True, max_queue_size=10,
+                                               callbacks=callbacks, verbose=1)
 
-    history = parallel_model.fit_generator(train_data_generator, epochs=FLAGS.max_epochs,
-                                           steps_per_epoch=train_samples_count / FLAGS.batch_size,
-                                           workers=FLAGS.nb_workers, use_multiprocessing=True, max_queue_size=10,
-                                           callbacks=callbacks, verbose=1)
+        saver = tf.train.Saver()
+        saver.save(train_sess, 'checkpoints')
 
 
 if __name__ == '__main__':
