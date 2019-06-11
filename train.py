@@ -6,12 +6,13 @@ from PIL import Image
 import tensorflow as tf
 import argparse
 from tensorflow.python.keras.callbacks import LearningRateScheduler, TensorBoard, Callback
+from tensorflow.python.keras.optimizers import TFOptimizer
 
 try:
     from tensorflow.python.keras.utils.training_utils import multi_gpu_model
 except ImportError:
     from tensorflow.python.keras.utils.multi_gpu_utils import multi_gpu_model
-import tensorflow.python.keras.backend as K
+import tensorflow.keras.backend as K
 
 #from adamw import AdamW
 
@@ -229,7 +230,7 @@ def main():
         score_map_loss_weight = K.variable(0.01, name='score_map_loss_weight')
         small_text_weight = K.variable(0., name='small_text_weight')
 
-        tf.contrib.quantize.create_training_graph(input_graph=train_graph, quant_delay=100)
+        tf.contrib.quantize.create_training_graph(input_graph=train_graph, quant_delay=250000)
         train_sess.run(tf.global_variables_initializer())
 
         lr_scheduler = LearningRateScheduler(lr_decay)
@@ -247,7 +248,7 @@ def main():
             dice_loss(east.overly_small_text_region_training_mask, east.text_region_boundary_training_mask,
                       score_map_loss_weight, small_text_weight),
             rbox_loss(east.overly_small_text_region_training_mask, east.text_region_boundary_training_mask,
-                      small_text_weight, east.target_score_map)], loss_weights=[1., 1.], optimizer='sgd')
+                      small_text_weight, east.target_score_map)], loss_weights=[1., 1.], optimizer='adam')
 
         model_json = east.model.to_json()
         with open(FLAGS.checkpoint_path + '/model.json', 'w') as json_file:

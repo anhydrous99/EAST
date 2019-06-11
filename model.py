@@ -2,7 +2,7 @@ from tensorflow.python.keras.applications.mobilenet_v2 import MobileNetV2
 from tensorflow.python.keras.models import Model
 from tensorflow.python.keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, Activation, Reshape
 from tensorflow.python.keras import regularizers
-import tensorflow.python.keras.backend as K
+import tensorflow.keras.backend as K
 import tensorflow as tf
 import numpy as np
 

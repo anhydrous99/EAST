@@ -5,6 +5,8 @@ import numpy as np
 import cv2
 import os
 
+from NoneException import NoneException
+
 
 class EastSequence(Sequence):
 
@@ -47,38 +49,47 @@ class EastSequence(Sequence):
             text_polys, text_tags = load_annotation(txt_fn)
             text_polys, text_tags = check_and_validate_polys(self.FLAGS, text_polys, text_tags, (h, w))
 
-            # random scale this image
-            rd_scale = np.random.choice(self.random_scale)
-            x_scale_variation = np.random.randint(-10, 10) / 100.
-            y_scale_variation = np.random.randint(-10, 10) / 100.
-            im = cv2.resize(im, dsize=None, fx=rd_scale + x_scale_variation, fy=rd_scale + y_scale_variation)
-            text_polys[:, :, 0] *= rd_scale + x_scale_variation
-            text_polys[:, :, 1] *= rd_scale + y_scale_variation
+            cont = True
+            while cont:
+                # random scale this image
+                rd_scale = np.random.choice(self.random_scale)
+                x_scale_variation = np.random.randint(-10, 10) / 100.
+                y_scale_variation = np.random.randint(-10, 10) / 100.
+                im = cv2.resize(im, dsize=None, fx=rd_scale + x_scale_variation, fy=rd_scale + y_scale_variation)
+                text_polys[:, :, 0] *= rd_scale + x_scale_variation
+                text_polys[:, :, 1] *= rd_scale + y_scale_variation
 
-            # random crop a area from image
-            if np.random.rand() < self.background_ratio:
-                # crop background
-                im, text_polys, text_tags = crop_area(self.FLAGS, im, text_polys, text_tags, crop_background=True)
-                if text_polys.shape[0] > 0:
-                    continue
-                # pad and resize image
-                im, _, _ = pad_image(im, self.input_size, self.is_train)
-                im = cv2.resize(im, dsize=(self.input_size, self.input_size))
-                score_map = np.zeros((self.input_size, self.input_size), dtype=np.uint8)
-                geo_map_channels = 5 if self.geometry == 'RBOX' else 8
-                geo_map = np.zeros((self.input_size, self.input_size, geo_map_channels), dtype=np.float32)
-                overly_small_text_region_training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)
-                text_region_boundary_training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)
-            else:
-                im, text_polys, text_tags = crop_area(self.FLAGS, im, text_polys, text_tags, crop_background=False)
-                if text_polys.shape[0] == 0:
-                    continue
-                h, w, _ = im.shape
-                im, shift_h, shift_w = pad_image(im, self.input_size, self.is_train)
-                im, text_polys = resize_image(im, text_polys, self.input_size, shift_h, shift_w)
-                new_h, new_w, _ = im.shape
-                score_map, geo_map, overly_small_text_region_training_mask, text_region_boundary_training_mask = \
-                    generate_rbox(self.FLAGS, (new_h, new_w), text_polys, text_tags)
+                # random crop a area from image
+                if np.random.rand() < self.background_ratio:
+                    # crop background
+                    im, text_polys, text_tags = crop_area(self.FLAGS, im, text_polys, text_tags, crop_background=True)
+                    if text_polys.shape[0] > 0:
+                        continue
+                    # pad and resize image
+                    im, _, _ = pad_image(im, self.input_size, self.is_train)
+                    im = cv2.resize(im, dsize=(self.input_size, self.input_size))
+                    score_map = np.zeros((self.input_size, self.input_size), dtype=np.uint8)
+                    geo_map_channels = 5 if self.geometry == 'RBOX' else 8
+                    geo_map = np.zeros((self.input_size, self.input_size, geo_map_channels), dtype=np.float32)
+                    overly_small_text_region_training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)
+                    text_region_boundary_training_mask = np.ones((self.input_size, self.input_size), dtype=np.uint8)
+                else:
+                    im, text_polys, text_tags = crop_area(self.FLAGS, im, text_polys, text_tags, crop_background=False)
+                    if text_polys.shape[0] == 0:
+                        continue
+                    h, w, _ = im.shape
+                    im, shift_h, shift_w = pad_image(im, self.input_size, self.is_train)
+                    im, text_polys = resize_image(im, text_polys, self.input_size, shift_h, shift_w)
+                    new_h, new_w, _ = im.shape
+                    try:
+                        score_map, geo_map, overly_small_text_region_training_mask, text_region_boundary_training_mask = \
+                            generate_rbox(self.FLAGS, (new_h, new_w), text_polys, text_tags)
+                    except NoneException as e:
+                        import traceback
+                        traceback.print_exc()
+                        print('Error : ' + e.args[0])
+                        continue
+                cont = False
 
             im = (im / 127.5) - 1.
             images.append(im[:, :, ::-1].astype(np.float32))
@@ -91,7 +102,6 @@ class EastSequence(Sequence):
             text_region_boundary_training_masks.append(
                 text_region_boundary_training_mask[::4, ::4, np.newaxis].astype(np.float32)
             )
-        print(len(images))
         return [np.array(images), np.array(overly_small_text_region_training_masks),
                 np.array(text_region_boundary_training_masks), np.array(score_maps)], \
                [np.array(score_maps), np.array(geo_maps)]

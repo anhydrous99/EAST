@@ -10,6 +10,8 @@ import threading
 import numpy as np
 from shapely.geometry import Polygon
 
+from NoneException import NoneException
+
 
 def get_images(data_path):
     files = []
@@ -506,6 +508,8 @@ def generate_rbox(FLAGS, im_size, polys, tags):
             new_p2 = p2
             new_p3 = p3
             new_p2 = line_cross_point(FLAGS, forward_edge, edge_opposite)
+            if new_p2 is None:
+                raise NoneException("None detected -- {file}, {function}, {line}")
             if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
                 # across p0
                 if forward_edge[1] == 0:
