@@ -1,6 +1,6 @@
 from tensorflow.python.keras.applications.mobilenet_v2 import MobileNetV2
 from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, Activation, Reshape
+from tensorflow.python.keras.layers import Conv2D, concatenate, BatchNormalization, Lambda, Input, Reshape, ReLU
 from tensorflow.python.keras import regularizers
 import tensorflow.keras.backend as K
 import tensorflow as tf
@@ -27,6 +27,7 @@ def resize_output_shape(input_shape):
 class EASTModel:
 
     def __init__(self, input_size=512):
+        scaled_input_size = input_size / 2
         input_image = Input(shape=(512, 512, 3), name='input_image')
         overly_small_text_region_training_mask = Input(shape=(128, 128, 1), name='overly_small_text_region_training_mask')
         text_region_boundary_training_mask = Input(shape=(128, 128, 1), name='text_region_boundary_training_mask')
@@ -39,40 +40,40 @@ class EASTModel:
         x = concatenate([x, mobilenetv2.get_layer('block_13_expand_relu').output], axis=3)
         x = Conv2D(128, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
         x = Conv2D(128, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
 
         x = Lambda(resize_bilinear, output_shape=(64, 64, 128), name='resize_2')(x)
         x = Reshape((64, 64, 128))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_6_expand_relu').output], axis=3)
         x = Conv2D(64, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
         x = Conv2D(64, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
 
         x = Lambda(resize_bilinear, output_shape=(128, 128, 64), name='resize_3')(x)
         x = Reshape((128, 128, 64))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_3_expand_relu').output], axis=3)
         x = Conv2D(32, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
         x = Conv2D(32, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
 
         x = Conv2D(32, (3, 3), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
-        x = Activation('relu')(x)
+        x = ReLU(6.)(x)
 
-        pred_score_map = Conv2D(1, (1, 1), activation=tf.nn.sigmoid, name='pred_score_map')(x)
-        rbox_geo_map = Conv2D(4, (1, 1), activation=tf.nn.sigmoid, name='rbox_geo_map')(x) 
-        rbox_geo_map = Lambda(lambda x: x * input_size)(rbox_geo_map)
-        angle_map = Conv2D(1, (1, 1), activation=tf.nn.sigmoid, name='rbox_angle_map')(x)
-        angle_map = Lambda(lambda x: 1.57079632679 * x - 0.78539816339)(angle_map)
+        pred_score_map = Conv2D(1, (1, 1), activation=tf.nn.tanh, name='pred_score_map')(x)
+        rbox_geo_map = Conv2D(4, (1, 1), activation=tf.nn.tanh, name='rbox_geo_map')(x)
+        rbox_geo_map = Lambda(lambda x: (x + 1) * scaled_input_size)(rbox_geo_map)
+        angle_map = Conv2D(1, (1, 1), activation=tf.nn.tanh, name='rbox_angle_map')(x)
+        angle_map = Lambda(lambda x: 0.7853981633974483 * x)(angle_map)
         pred_geo_map = concatenate([rbox_geo_map, angle_map], axis=3, name='pred_geo_map')
 
         model = Model(inputs=[input_image, overly_small_text_region_training_mask, text_region_boundary_training_mask, target_score_map], outputs=[pred_score_map, pred_geo_map])
