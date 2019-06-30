@@ -70,6 +70,7 @@ class EASTModel:
         x = ReLU(6.)(x)
 
         pred_score_map = Conv2D(1, (1, 1), activation=tf.nn.tanh, name='pred_score_map')(x)
+        pred_score_map = Lambda(lambda x: (x + 1) * 0.5)(pred_score_map)
         rbox_geo_map = Conv2D(4, (1, 1), activation=tf.nn.tanh, name='rbox_geo_map')(x)
         rbox_geo_map = Lambda(lambda x: (x + 1) * scaled_input_size)(rbox_geo_map)
         angle_map = Conv2D(1, (1, 1), activation=tf.nn.tanh, name='rbox_angle_map')(x)
