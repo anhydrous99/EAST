@@ -206,7 +206,7 @@ def main():
         os.mkdir(FLAGS.checkpoint_path)
 
 #    train_data_generator = data_processor.generator(FLAGS)
-    train_data_generator = EastSequence(FLAGS)
+    train_data_generator = EastSequence(FLAGS, input_size=FLAGS.input_size)
     train_samples_count = data_processor.count_samples(FLAGS)
 
     val_data = data_processor.load_data(FLAGS)
