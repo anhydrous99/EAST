@@ -28,15 +28,15 @@ class EASTModel:
 
     def __init__(self, input_size=512):
         scaled_input_size = input_size / 2
-        input_image = Input(shape=(512, 512, 3), name='input_image')
+        input_image = Input(shape=(input_size, input_size, 3), name='input_image')
         overly_small_text_region_training_mask = Input(shape=(128, 128, 1), name='overly_small_text_region_training_mask')
-        text_region_boundary_training_mask = Input(shape=(128, 128, 1), name='text_region_boundary_training_mask')
-        target_score_map = Input(shape=(128, 128, 1), name='target_score_map')
-        mobilenetv2 = MobileNetV2(input_tensor=input_image, input_shape=(512, 512, 3), weights='imagenet', include_top=False, pooling=None)
+        text_region_boundary_training_mask = Input(shape=(input_size // 4, input_size // 4, 1), name='text_region_boundary_training_mask')
+        target_score_map = Input(shape=(input_size // 4, input_size // 4, 1), name='target_score_map')
+        mobilenetv2 = MobileNetV2(input_tensor=input_image, input_shape=(input_size, input_size, 3), weights='imagenet', include_top=False, pooling=None)
         x = mobilenetv2.get_layer('out_relu').output
 
-        x = Lambda(resize_bilinear, output_shape=(32, 32, 1280), name='resize_1')(x)
-        x = Reshape((32, 32, 1280))(x)
+        x = Lambda(resize_bilinear, output_shape=(input_size // 16, input_size // 16, 1280), name='resize_1')(x)
+        x = Reshape((input_size // 16, input_size // 16, 1280))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_13_expand_relu').output], axis=3)
         x = Conv2D(128, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
@@ -45,8 +45,8 @@ class EASTModel:
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = ReLU(6.)(x)
 
-        x = Lambda(resize_bilinear, output_shape=(64, 64, 128), name='resize_2')(x)
-        x = Reshape((64, 64, 128))(x)
+        x = Lambda(resize_bilinear, output_shape=(input_size // 8, input_size // 8, 128), name='resize_2')(x)
+        x = Reshape((input_size // 8, input_size // 8, 128))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_6_expand_relu').output], axis=3)
         x = Conv2D(64, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
@@ -55,8 +55,8 @@ class EASTModel:
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
         x = ReLU(6.)(x)
 
-        x = Lambda(resize_bilinear, output_shape=(128, 128, 64), name='resize_3')(x)
-        x = Reshape((128, 128, 64))(x)
+        x = Lambda(resize_bilinear, output_shape=(input_size // 4, input_size // 4, 64), name='resize_3')(x)
+        x = Reshape((input_size // 4, input_size // 4, 64))(x)
         x = concatenate([x, mobilenetv2.get_layer('block_3_expand_relu').output], axis=3)
         x = Conv2D(32, (1, 1), padding='same', kernel_regularizer=regularizers.l2(1e-5))(x)
         x = BatchNormalization(momentum=0.997, epsilon=1e-5, scale=True, fused=False)(x)
